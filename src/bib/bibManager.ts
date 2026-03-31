@@ -16,6 +16,7 @@ import {
   PromiseCapability,
   copyElToClipboard,
   getVaultRoot,
+  resolvePath,
 } from 'src/helpers';
 import {
   RenderedCitation,
@@ -88,9 +89,16 @@ function getScopedSettings(file: TFile): ScopedSettings {
     return null;
   }
 
-  // Checks whether the bibliography is a relative path and replaces the path with an absolute one
-  if (existsSync(path.join(getVaultRoot(), path.dirname(file.path), output.bibliography))){
-    output.bibliography = path.join(getVaultRoot(), path.dirname(file.path), output.bibliography);
+  const lastSlash = file.path.lastIndexOf('/');
+  const dir = lastSlash === -1 ? '' : file.path.substring(0, lastSlash);
+  const baseDir = path.join(getVaultRoot(), dir);
+
+  if (output.bibliography) {
+    output.bibliography = resolvePath(output.bibliography, baseDir);
+  }
+
+  if (output.style && !/^http/.test(output.style)) {
+    output.style = resolvePath(output.style, baseDir);
   }
 
   return output;
@@ -224,8 +232,10 @@ export class BibManager {
     if (!settings) return this;
 
     const pluginSettings = this.plugin.settings;
+    const globalStylePath = resolvePath(pluginSettings.cslStylePath, getVaultRoot());
     let style =
-      pluginSettings.cslStyleURL ??
+      globalStylePath ||
+      pluginSettings.cslStyleURL ||
       'https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl';
     let lang = pluginSettings.cslLang ?? 'en-US';
     let bibCache = this.bibCache;
@@ -280,6 +290,14 @@ export class BibManager {
     }
 
     try {
+      if (!this.styleCache.has(style)) {
+        const isURL = /^http/.test(style);
+        await this.getLangAndStyle(lang, {
+          id: style,
+          explicitPath: isURL ? undefined : style,
+        });
+      }
+
       const engine = this.buildEngine(
         lang,
         this.langCache,
@@ -340,15 +358,16 @@ export class BibManager {
       this.setFuse(bib);
     }
 
+    const stylePath = resolvePath(settings.cslStylePath, getVaultRoot());
     const style =
-      settings.cslStylePath ||
+      stylePath ||
       settings.cslStyleURL ||
       'https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl';
     const lang = settings.cslLang || 'en-US';
 
     await this.getLangAndStyle(lang, {
       id: style,
-      explicitPath: settings.cslStylePath,
+      explicitPath: stylePath,
     });
     if (!this.styleCache.has(style)) return;
 
@@ -402,15 +421,16 @@ export class BibManager {
 
     this.setFuse(bib);
 
+    const stylePath = resolvePath(settings.cslStylePath, getVaultRoot());
     const style =
-      settings.cslStylePath ||
+      stylePath ||
       settings.cslStyleURL ||
       'https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl';
     const lang = settings.cslLang || 'en-US';
 
     await this.getLangAndStyle(lang, {
       id: style,
-      explicitPath: settings.cslStylePath,
+      explicitPath: stylePath,
     });
     if (!this.styleCache.has(style)) return;
 
@@ -474,7 +494,7 @@ export class BibManager {
     const styleXML = styleCache.get(style);
     if (!styleXML) {
       throw new Error(
-        'attempting to build citproc engine with empty CSL style'
+        `attempting to build citproc engine with empty CSL style: ${style}`
       );
     }
     if (!langCache.get(lang)) {

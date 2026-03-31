@@ -55,7 +55,13 @@ export default class ReferenceList extends Plugin {
       (leaf: WorkspaceLeaf) => new ReferenceListView(leaf, this)
     );
 
-    this.cacheDir = path.join(getVaultRoot(), '.pandoc');
+    this.cacheDir = path.join(
+      getVaultRoot(),
+      this.app.vault.configDir,
+      'plugins',
+      this.manifest.id,
+      '.pandoc-cache'
+    );
     this.emitter = new Events();
     this.bibManager = new BibManager(this);
     this.initPromise.promise
@@ -324,14 +330,6 @@ export default class ReferenceList extends Plugin {
 
   processReferences = async () => {
     const { settings, view } = this;
-    if (!settings.pathToBibliography && !settings.pullFromZotero) {
-      return view?.setMessage(
-        t(
-          'Please provide the path to your pandoc compatible bibliography file in the Pandoc Reference List plugin settings.'
-        )
-      );
-    }
-
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (activeView) {
       try {

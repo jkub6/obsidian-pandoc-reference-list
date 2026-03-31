@@ -1,9 +1,28 @@
 import { FileSystemAdapter, htmlToMarkdown } from 'obsidian';
 import { shellPath } from 'shell-path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export function getVaultRoot() {
   // This is a desktop only plugin, so assume adapter is FileSystemAdapter
   return (app.vault.adapter as FileSystemAdapter).getBasePath();
+}
+
+export function resolvePath(pathStr: string, baseDir: string): string {
+  if (!pathStr) return pathStr;
+
+  if (path.isAbsolute(pathStr)) {
+    return pathStr;
+  }
+
+  const resolved = path.join(baseDir, pathStr);
+  if (fs.existsSync(resolved)) {
+    return resolved;
+  }
+
+  // If not found relative to baseDir, it might already be a valid path relative to CWD
+  // but we prefer baseDir. We return the original and let the caller handle it.
+  return pathStr;
 }
 
 export function copyElToClipboard(el: HTMLElement) {
