@@ -308,7 +308,10 @@ export default class ReferenceList extends Plugin {
 
     // Refresh the reference list when settings change
     this.emitSettingsUpdate(cb);
-    await this.saveData(this.settings);
+    
+    // Create a copy of the current settings, but force the path to be blank for the save file
+    const settingsToSave = Object.assign({}, this.settings, { pathToPandoc: "" });
+    await this.saveData(settingsToSave);
   }
 
   emitSettingsUpdate = debounce(
